@@ -1,0 +1,186 @@
+"""
+Potter Airlines - flight data and the Flight class.
+Owner: Joyce  (data + Flight class)
+
+Other modules depend on the names here:
+    pricing.py    reads base_fare, demand_index, seats_remaining, capacity, depart_date
+    db.py         uses COLUMNS, as_row(), from_row()
+    analytics.py  uses COLUMNS as DataFrame column names
+
+Import it as:
+    from data import Flight, generate_flights, COLUMNS
+
+Run it directly to generate the data, check it, and write flights.csv:
+    python3 data.py
+
+"""
+
+from __future__ import annotations
+
+import csv
+import random
+from dataclasses import dataclass
+from datetime import date, timedelta
+
+# Routes. base_fare = anchor price; demand_index = how hot the route is (1.00 = average).
+ROUTES = {
+    ("YYZ", "YUL"): {"base_fare": 119.0, "demand_index": 0.85},  # short hop, many alternatives
+    ("YYZ", "JFK"): {"base_fare": 229.0, "demand_index": 1.30},  # business heavy
+    ("YYZ", "ORD"): {"base_fare": 199.0, "demand_index": 1.15},  # business heavy
+    ("YYZ", "YVR"): {"base_fare": 349.0, "demand_index": 1.00},  # transcontinental
+    ("YYZ", "LAX"): {"base_fare": 389.0, "demand_index": 1.10},
+    ("YYZ", "MIA"): {"base_fare": 299.0, "demand_index": 1.05},  # snowbird traffic
+    ("YYZ", "CUN"): {"base_fare": 329.0, "demand_index": 0.95},  # leisure, price sensitive
+    ("YYZ", "LHR"): {"base_fare": 649.0, "demand_index": 1.20},  # long haul
+}
+
+CAPACITIES = [78, 137, 189]          # aircraft sizes Potter Airlines flies
+
+# Column order shared by the SQLite table, as_row() and the DataFrame.
+COLUMNS = ("flight_id", "origin", "destination", "depart_date",
+           "base_fare", "seats_remaining", "capacity", "demand_index")
+
+
+@dataclass
+class Flight:
+
+    flight_id: str
+    origin: str
+    destination: str
+    depart_date: date
+    base_fare: float
+    seats_remaining: int
+    capacity: int
+    demand_index: float = 1.00
+
+    def __post_init__(self):
+        """Reject impossible flights."""
+        if isinstance(self.depart_date, str):          # SQLite stores dates as text
+            self.depart_date = date.fromisoformat(self.depart_date)
+        if self.origin == self.destination:
+            raise ValueError(f"{self.flight_id}: origin and destination are both {self.origin}")
+        if self.capacity <= 0:
+            raise ValueError(f"{self.flight_id}: capacity must be positive")
+        if not 0 <= self.seats_remaining <= self.capacity:
+            raise ValueError(
+                f"{self.flight_id}: seats_remaining ({self.seats_remaining}) "
+                f"must be between 0 and capacity ({self.capacity})"
+            )
+        if self.base_fare <= 0 or self.demand_index <= 0:
+            raise ValueError(f"{self.flight_id}: base_fare and demand_index must be positive")
+
+    @property
+    def route(self) -> str:
+        return f"{self.origin}-{self.destination}"
+
+    @property
+    def load_factor(self) -> float:
+        """Fraction of the aircraft already sold"""
+        return (self.capacity - self.seats_remaining) / self.capacity
+
+    @property
+    def is_weekend_departure(self) -> bool:
+        return self.depart_date.weekday() >= 5
+
+    def days_until_departure(self, as_of: date | None = None) -> int:
+        """Days from `as_of` (default today) to departure. Negative if already flown."""
+        return (self.depart_date - (as_of or date.today())).days
+
+    def sell_seats(self, n: int = 1) -> int:
+        """Sell n seats."""
+        if n <= 0:
+            raise ValueError(f"must sell at least 1 seat, got {n}")
+        if n > self.seats_remaining:
+            raise ValueError(
+                f"{self.flight_id}: cannot sell {n}, only {self.seats_remaining} remain"
+            )
+        self.seats_remaining -= n
+        return self.seats_remaining
+
+    def as_row(self) -> tuple:
+        """COLUMNS-ordered tuple for a parameterised INSERT."""
+        return (self.flight_id, self.origin, self.destination,
+                self.depart_date.isoformat(), self.base_fare,
+                self.seats_remaining, self.capacity, self.demand_index)
+
+    @classmethod
+    def from_row(cls, row) -> "Flight":
+        """Rebuild a Flight from a SELECT result. Re-validates via __post_init__."""
+        return cls(*tuple(row))
+
+    def __str__(self) -> str:
+        return (f"{self.flight_id} {self.route} {self.depart_date} "
+                f"({self.seats_remaining}/{self.capacity} seats left, base ${self.base_fare:.0f})")
+
+
+def generate_flights(n: int = 60, as_of: date | None = None, seed: int = 42) -> list[Flight]:
+    """Create n flights departing in the next 120 days.
+
+    the data contains the "closer to departure = fuller" pattern the
+    pricing model is meant to react to. 
+    """
+    as_of = as_of or date.today()
+    rng = random.Random(seed)          # seeded: everyone gets identical data
+    routes = list(ROUTES.items())
+    flights = []
+
+    for i in range(n):
+        (origin, destination), info = routes[i % len(routes)]
+        capacity = rng.choice(CAPACITIES)
+        days_out = rng.randint(1, 120)
+
+        # How much of the plane is already sold, by advance-purchase tier.
+        if days_out <= 30:
+            sold_ratio = 0.80
+        elif days_out <= 60:
+            sold_ratio = 0.60
+        else:
+            sold_ratio = 0.40
+
+        sold_ratio += rng.uniform(-0.08, 0.08)          # so same-tier flights differ
+        sold_ratio = min(max(sold_ratio, 0.0), 1.0)     # keep seats within 0..capacity
+
+        flights.append(Flight(
+            flight_id=f"PA{1000 + i}",
+            origin=origin,
+            destination=destination,
+            depart_date=as_of + timedelta(days=days_out),
+            base_fare=info["base_fare"],
+            seats_remaining=capacity - round(sold_ratio * capacity),
+            capacity=capacity,
+            demand_index=round(info["demand_index"] * rng.uniform(0.95, 1.05), 3),
+        ))
+
+    # Force the edge cases the testing module needs, rather than hoping for them.
+    flights[0].seats_remaining = 0                       # sold out
+    flights[1].seats_remaining = 1                       # last seat
+    flights[2].depart_date = as_of + timedelta(days=1)   # departs tomorrow
+    return flights
+
+
+def export_csv(flights: list[Flight], path: str = "flights.csv") -> str:
+    """Write the flights to a CSV file and return the path."""
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(COLUMNS)                        # header row
+        writer.writerows(f.as_row() for f in flights)   # one row per flight
+    return path
+
+
+if __name__ == "__main__":
+    fleet = generate_flights()
+    print(f"Generated {len(fleet)} flights\n")
+    for f in fleet[:10]:
+        print(" ", f)
+
+    print("\nEdge cases:")
+    print(f"  sold out  : {fleet[0]}")
+    print(f"  last seat : {fleet[1]}")
+    print(f"  tomorrow  : days_until={fleet[2].days_until_departure()}")
+
+    row = fleet[2].as_row()
+    assert Flight.from_row(row) == fleet[2]
+    print(f"\nSQLite round-trip OK: {row}")
+
+    path = export_csv(fleet)
+    print(f"Wrote {len(fleet)} flights to {path}")
