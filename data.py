@@ -54,7 +54,7 @@ class Flight:
     demand_index: float = 1.00
 
     def __post_init__(self):
-        """Reject impossible flights."""
+        """Reject impossible flights(Validation)."""
         if isinstance(self.depart_date, str):          # SQLite stores dates as text
             self.depart_date = date.fromisoformat(self.depart_date)
         if self.origin == self.destination:
@@ -113,8 +113,8 @@ class Flight:
                 f"({self.seats_remaining}/{self.capacity} seats left, base ${self.base_fare:.0f})")
 
 
-def generate_flights(n: int = 60, as_of: date | None = None, seed: int = 42) -> list[Flight]:
-    """Create n flights departing in the next 120 days.
+def generate_flights(n: int = 100, as_of: date | None = None, seed: int = 42) -> list[Flight]:
+    """Create n flights departing in the next 120 days(Assumption).
 
     the data contains the "closer to departure = fuller" pattern the
     pricing model is meant to react to. 
