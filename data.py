@@ -12,7 +12,6 @@ Import it as:
 
 Run it directly to generate the data, check it, and write flights.csv:
     python3 data.py
-
 """
 
 from __future__ import annotations
