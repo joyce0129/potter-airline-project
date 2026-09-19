@@ -111,6 +111,33 @@ class Flight:
         return (f"{self.flight_id} {self.route} {self.depart_date} "
                 f"({self.seats_remaining}/{self.capacity} seats left, base ${self.base_fare:.0f})")
 
+    def time_factor(self):
+        days= self.days_until_departure()
+        if days<=0:
+            raise ValueError(f"Cannot buy ticket on or after plane departure")
+        elif days<=3:
+            return 1.5
+        elif days<=7:
+            return 1.35
+        elif days<=14:
+            return 1.1
+        else:
+            return 1
+
+    def capacity_factor(self):
+        return 0.85+0.5*self.load_factor
+
+    def weekend_factor(self):
+        if self.is_weekend_departure:
+            return 1.08
+        else:
+            return true
+
+    def price(self):
+        return self.base_fare*self.demand_index+self.time_factor()+self.capacity_factor()+self.weekend_factor()
+
+
+
 
 def generate_flights(n: int = 100, as_of: date | None = None, seed: int = 42) -> list[Flight]:
     """Create n flights departing in the next 120 days(Assumption).
@@ -183,3 +210,4 @@ if __name__ == "__main__":
 
     path = export_csv(fleet)
     print(f"Wrote {len(fleet)} flights to {path}")
+
