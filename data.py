@@ -160,7 +160,7 @@ class Flight:
             #weekend factor if on weekend
             return 1.08
         else:
-            #weekend factor if not on weekend
+            #weekend factor if weekday
             return 1
 
     def season_factor(self):
