@@ -112,44 +112,64 @@ class Flight:
                 f"({self.seats_remaining}/{self.capacity} seats left, base ${self.base_fare:.0f})")
 
     def time_factor(self):
+        # calculates and returns the time factor that influences price
         days= self.days_until_departure()
+        #days away from departure
         if days<=0:
+            #error if already departed or now departing
             raise ValueError(f"Cannot buy ticket on or after plane departure")
         elif days<=3:
+            #time factor if departure less than or equal to 3 days away
             return 1.5
         elif days<=7:
+            #time factor if departure less than or equal to a week away
             return 1.35
         elif days<=14:
+            #time factor if departure less than or equal to 2 weeks away
             return 1.1
         else:
+            #time factor if departure more than 2 weeks away
             return 1
 
     def capacity_factor(self):
+        #calculates and returns the capacity factor that influences price
         return 0.85+0.5*self.load_factor
+        #if load factor is 0 capacity factor is 0.85, otherwise capacity factor becomes 0.85+.5 times the load factor
 
     def weekend_factor(self):
+        #calculates and returns the weekend factor that influences price
         if self.is_weekend_departure:
+            #weekend factor if on weekend
             return 1.08
         else:
+            #weekend factor if not on weekend
             return 1
 
     def season_factor(self):
+        #calculates and returns the season factor that influences price
         the_month = self.depart_date.month
+        #gets the month
         if (the_month<=2) or (the_month==12):
+            #winter season
             return 1.05
         elif the_month<=5:
+            #spring season
             return 1
         elif the_month<=8:
+            #summer season
             return 1.2
         elif the_month<=11:
+            #fall season
             return 0.9
         else:
+            #error as not a month
             raise ValueError(f"Not a month")
 
 
 
 
     def price(self):
+        #calculates price by multiplying the base fare by demand factor(which is the demand index), time factor, capacity factor, weekend factor, and season factor
         return self.base_fare*self.demand_index+self.time_factor()+self.capacity_factor()+self.weekend_factor()*self.season_factor()
 
 
