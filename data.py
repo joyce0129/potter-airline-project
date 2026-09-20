@@ -35,9 +35,22 @@ ROUTES = {
 
 CAPACITIES = [78, 137, 189]          # aircraft sizes Potter Airlines flies
 
+# Season of the departure date. 
+SEASONS = {12: "winter", 1: "winter", 2: "winter",
+           3: "spring", 4: "spring", 5: "spring",
+           6: "summer", 7: "summer", 8: "summer",
+           9: "fall", 10: "fall", 11: "fall"}
+
+
+def season_of(depart_date: date) -> str:
+    """'winter', 'spring', 'summer' or 'fall' for the month the flight departs."""
+    return SEASONS[depart_date.month]
+
+
 # Column order shared by the SQLite table, as_row() and the DataFrame.
 COLUMNS = ("flight_id", "origin", "destination", "depart_date",
-           "base_fare", "seats_remaining", "capacity", "demand_index")
+           "base_fare", "seats_remaining", "capacity", "demand_index",
+           "season")
 
 
 @dataclass
@@ -51,6 +64,7 @@ class Flight:
     seats_remaining: int
     capacity: int
     demand_index: float = 1.00
+    season: str = ""                  # filled in from depart_date if left blank
 
     def __post_init__(self):
         """Reject impossible flights(Validation)."""
@@ -67,6 +81,8 @@ class Flight:
             )
         if self.base_fare <= 0 or self.demand_index <= 0:
             raise ValueError(f"{self.flight_id}: base_fare and demand_index must be positive")
+        if not self.season:                        # keep it in step with depart_date
+            self.season = season_of(self.depart_date)
 
     @property
     def route(self) -> str:
@@ -100,7 +116,8 @@ class Flight:
         """COLUMNS-ordered tuple for a parameterised INSERT."""
         return (self.flight_id, self.origin, self.destination,
                 self.depart_date.isoformat(), self.base_fare,
-                self.seats_remaining, self.capacity, self.demand_index)
+                self.seats_remaining, self.capacity, self.demand_index,
+                self.season)
 
     @classmethod
     def from_row(cls, row) -> "Flight":
@@ -178,7 +195,9 @@ class Flight:
 
 
 def generate_flights(n: int = 100, as_of: date | None = None, seed: int = 42) -> list[Flight]:
-    """Create n flights departing in the next 120 days(Assumption).
+    """Create n flights departing in the next 365 days(Assumption).
+
+    A full year so every season shows up in the data.
 
     the data contains the "closer to departure = fuller" pattern the
     pricing model is meant to react to. 
@@ -191,7 +210,8 @@ def generate_flights(n: int = 100, as_of: date | None = None, seed: int = 42) ->
     for i in range(n):
         (origin, destination), info = routes[i % len(routes)]
         capacity = rng.choice(CAPACITIES)
-        days_out = rng.randint(1, 120)
+        days_out = rng.randint(1, 365)
+        depart_date = as_of + timedelta(days=days_out)
 
         # How much of the plane is already sold, by advance-purchase tier.
         if days_out <= 30:
@@ -208,17 +228,19 @@ def generate_flights(n: int = 100, as_of: date | None = None, seed: int = 42) ->
             flight_id=f"PA{1000 + i}",
             origin=origin,
             destination=destination,
-            depart_date=as_of + timedelta(days=days_out),
+            depart_date=depart_date,
             base_fare=info["base_fare"],
             seats_remaining=capacity - round(sold_ratio * capacity),
             capacity=capacity,
             demand_index=round(info["demand_index"] * rng.uniform(0.95, 1.05), 3),
+            season=season_of(depart_date),
         ))
 
-    # Force the edge cases the testing module needs, rather than hoping for them.
+    # Force the edge cases the testing module needs.
     flights[0].seats_remaining = 0                       # sold out
     flights[1].seats_remaining = 1                       # last seat
     flights[2].depart_date = as_of + timedelta(days=1)   # departs tomorrow
+    flights[2].season = season_of(flights[2].depart_date)   # new date can be a new season
     return flights
 
 
@@ -241,6 +263,10 @@ if __name__ == "__main__":
     print(f"  sold out  : {fleet[0]}")
     print(f"  last seat : {fleet[1]}")
     print(f"  tomorrow  : days_until={fleet[2].days_until_departure()}")
+
+    print("\nFlights by season:")
+    for s in ("winter", "spring", "summer", "fall"):
+        print(f"  {s:7}: {sum(f.season == s for f in fleet)}")
 
     row = fleet[2].as_row()
     assert Flight.from_row(row) == fleet[2]
