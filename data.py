@@ -131,10 +131,27 @@ class Flight:
         if self.is_weekend_departure:
             return 1.08
         else:
-            return true
+            return 1
+
+    def season_factor(self):
+        the_month = self.depart_date.month
+        if (the_month<=2) or (the_month==12):
+            return 1.05
+        elif the_month<=5:
+            return 1
+        elif the_month<=8:
+            return 1.2
+        elif the_month<=11:
+            return 0.9
+        else:
+            raise ValueError(f"Not a month")
+
+
+
 
     def price(self):
-        return self.base_fare*self.demand_index+self.time_factor()+self.capacity_factor()+self.weekend_factor()
+        return self.base_fare*self.demand_index+self.time_factor()+self.capacity_factor()+self.weekend_factor()*self.season_factor()
+
 
 
 
