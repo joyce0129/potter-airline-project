@@ -188,7 +188,7 @@ class Flight:
 
     def price(self):
         #calculates price by multiplying the base fare by demand factor(which is the demand index), time factor, capacity factor, weekend factor, and season factor
-        return self.base_fare*self.demand_index+self.time_factor()+self.capacity_factor()+self.weekend_factor()*self.season_factor()
+        return self.base_fare*self.demand_index+self.time_factor()*self.capacity_factor()*self.weekend_factor()*self.season_factor()
 
 
 
