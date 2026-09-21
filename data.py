@@ -124,8 +124,8 @@ class Flight:
         """Rebuild a Flight from a SELECT result. Re-validates via __post_init__."""
         return cls(*tuple(row))
 
-    #this is a builtin method no? prob delete or change name?
     def __str__(self) -> str:
+        """One-line summary. Used automatically by print(flight) and f"{flight}"."""
         return (f"{self.flight_id} {self.route} {self.depart_date} "
                 f"({self.seats_remaining}/{self.capacity} seats left, base ${self.base_fare:.0f})")
 
