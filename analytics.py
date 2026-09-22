@@ -154,7 +154,7 @@ def add_analytics(
     # Set minimum fare to 50% of base fare
     minimum_fare = result["base_fare"] * 0.5
 
-    # Set maximum fare to 200% of base fare
+    # Set maximum fare to 300% of base fare
     maximum_fare = result["base_fare"] * 3.0
 
     # Keep calculated prices within the minimum and maximum fare bounds
