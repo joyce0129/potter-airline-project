@@ -151,6 +151,18 @@ def add_analytics(
         * result["season_factor"]
     )
 
+    # Set minimum fare to 50% of base fare
+    minimum_fare = result["base_fare"] * 0.5
+
+    # Set maximum fare to 200% of base fare
+    maximum_fare = result["base_fare"] * 2.0
+
+    # Keep calculated prices within the minimum and maximum fare bounds
+    result["price"] = result["price"].clip(
+        lower=minimum_fare,
+        upper=maximum_fare,
+    )
+
     # Round prices to cents
     result["price"] = result["price"].round(2)
 
