@@ -21,6 +21,8 @@ import random
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from test import base_fare_cannot_be_negative
+
 # Routes. base_fare = anchor price; demand_index = how hot the route is (1.00 = average).
 ROUTES = {
     ("YYZ", "YUL"): {"base_fare": 119.0, "demand_index": 0.85},  # short hop, many alternatives
@@ -187,8 +189,13 @@ class Flight:
 
 
     def price(self):
+        price=self.base_fare*self.demand_index*self.time_factor()*self.capacity_factor()*self.weekend_factor()*self.season_factor()
+        if price<.5*self.base_fare:
+            price=.5*self.base_fare
+        elif price>3*self.base_fare:
+            price=3*self.base_fare
         #calculates price by multiplying the base fare by demand factor(which is the demand index), time factor, capacity factor, weekend factor, and season factor
-        return self.base_fare*self.demand_index*self.time_factor()*self.capacity_factor()*self.weekend_factor()*self.season_factor()
+        return price
 
 
 
